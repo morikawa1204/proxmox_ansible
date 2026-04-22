@@ -1,0 +1,79 @@
+---
+# ===== Longhorn前提パッケージ (storage固有) =====
+- name: Install Longhorn prerequisites on storage node
+  ansible.builtin.apt:
+    name:
+      - open-iscsi
+      - nfs-common
+    state: present
+    update_cache: true
+
+- name: Enable and start iscsid
+  ansible.builtin.systemd:
+    name: iscsid
+    enabled: true
+    state: started
+
+# ===== Storage kubeadm join =====
+- name: Check if node is already joined
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf
+
+- name: Join storage node to cluster
+  ansible.builtin.command: >
+    {{ hostvars[groups['control_plane'][0]].kubeadm_join_command }}
+    --node-name={{ inventory_hostname }}
+  when: not kubelet_conf.stat.exists
+
+# ===== Storageノード ラベル付与 =====
+- name: Label node as storage
+  ansible.builtin.command: >
+    kubectl label node {{ inventory_hostname }}
+    node-role.kubernetes.io/storage=""
+    --overwrite
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  changed_when: true
+
+- name: Label node for Longhorn default disk
+  ansible.builtin.command: >
+    kubectl label node {{ inventory_hostname }}
+    node.longhorn.io/create-default-disk=true
+    --overwrite
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  changed_when: true
+
+# ===== Storageノード taint付与 =====
+- name: Taint storage node for dedicated Longhorn use
+  ansible.builtin.command: >
+    kubectl taint node {{ inventory_hostname }}
+    node-role.kubernetes.io/storage=:NoSchedule
+    --overwrite
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  changed_when: true
+
+- name: Wait for storage node to be Ready
+  ansible.builtin.command: >
+    kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  register: storage_ready
+  until: storage_ready.stdout == "True"
+  retries: 30
+  delay: 10
+  changed_when: false

@@ -1,0 +1,8 @@
+---
+# Storage VMをテンプレートからクローン・起動
+- name: Create Storage VM
+  hosts: storage
+  gather_facts: false
+  become: false
+  roles:
+    - proxmox_vm_storage

@@ -1,0 +1,76 @@
+---
+- name: Download Debian 12 cloud image
+  ansible.builtin.get_url:
+    url: "{{ debian_cloud_image_url }}"
+    dest: "/tmp/{{ debian_cloud_image_file }}"
+    mode: "0644"
+  register: cloud_image_download
+
+- name: Check if template VM already exists
+  ansible.builtin.shell: qm status {{ vm_template_id }}
+  register: template_exists
+  failed_when: false
+  changed_when: false
+
+- name: Create template VM
+  when: template_exists.rc != 0
+  block:
+    - name: Create VM for template
+      ansible.builtin.command: >
+        qm create {{ vm_template_id }}
+        --name {{ vm_template_name }}
+        --ostype l26
+        --memory 2048
+        --cores 2
+        --net0 virtio,bridge={{ vm_bridge }}
+        --scsihw virtio-scsi-single
+        --agent enabled=1
+
+    - name: Import cloud image disk
+      ansible.builtin.command: >
+        qm set {{ vm_template_id }}
+        --scsi0 {{ vm_storage }}:0,import-from=/tmp/{{ debian_cloud_image_file }}
+
+    - name: Add cloud-init drive
+      ansible.builtin.command: >
+        qm set {{ vm_template_id }}
+        --ide2 {{ vm_storage }}:cloudinit
+
+    - name: Set boot order to scsi0
+      ansible.builtin.command: >
+        qm set {{ vm_template_id }}
+        --boot order=scsi0
+
+    - name: Set serial console for cloud-init
+      ansible.builtin.command: >
+        qm set {{ vm_template_id }}
+        --serial0 socket
+        --vga serial0
+
+    - name: Configure cloud-init defaults
+      ansible.builtin.command: >
+        qm set {{ vm_template_id }}
+        --ciuser {{ cloud_init_user }}
+        --cipassword {{ cloud_init_password }}
+        --sshkeys /tmp/authorized_keys_template
+      args:
+        creates: /tmp/.template_ci_configured
+
+    - name: Write SSH public key to temp file
+      ansible.builtin.copy:
+        content: "{{ cloud_init_ssh_public_key }}"
+        dest: /tmp/authorized_keys_template
+        mode: "0644"
+
+    - name: Set cloud-init SSH key
+      ansible.builtin.command: >
+        qm set {{ vm_template_id }}
+        --sshkeys /tmp/authorized_keys_template
+
+    - name: Set cloud-init network (DHCP for template)
+      ansible.builtin.command: >
+        qm set {{ vm_template_id }}
+        --ipconfig0 ip=dhcp
+
+    - name: Convert VM to template
+      ansible.builtin.command: qm template {{ vm_template_id }}

@@ -1,0 +1,75 @@
+---
+# ===== kubeadm init =====
+- name: Check if cluster is already initialized
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_already_init
+
+- name: Initialize Kubernetes control plane
+  ansible.builtin.command: >
+    kubeadm init
+    --pod-network-cidr={{ pod_network_cidr }}
+    --service-cidr={{ service_cidr }}
+    --apiserver-advertise-address={{ ansible_host }}
+    --node-name={{ inventory_hostname }}
+  when: not kubeadm_already_init.stat.exists
+  register: kubeadm_init_result
+
+# ===== kubeconfig設定 =====
+- name: Create .kube directory for cloud_init_user
+  ansible.builtin.file:
+    path: "/home/{{ cloud_init_user }}/.kube"
+    state: directory
+    owner: "{{ cloud_init_user }}"
+    group: "{{ cloud_init_user }}"
+    mode: "0755"
+
+- name: Copy admin.conf to user kubeconfig
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "/home/{{ cloud_init_user }}/.kube/config"
+    owner: "{{ cloud_init_user }}"
+    group: "{{ cloud_init_user }}"
+    mode: "0600"
+    remote_src: true
+
+# ===== Calico CNI =====
+- name: Download Calico manifest
+  ansible.builtin.get_url:
+    url: "{{ calico_manifest_url }}"
+    dest: /tmp/calico.yaml
+    mode: "0644"
+
+- name: Apply Calico CNI
+  ansible.builtin.command: >
+    kubectl apply -f /tmp/calico.yaml
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  register: calico_apply
+  changed_when: "'created' in calico_apply.stdout or 'configured' in calico_apply.stdout"
+
+# ===== join情報取得 =====
+- name: Generate join token
+  ansible.builtin.command: kubeadm token create --print-join-command
+  register: kubeadm_join_command_result
+  changed_when: false
+
+- name: Store join command as fact
+  ansible.builtin.set_fact:
+    kubeadm_join_command: "{{ kubeadm_join_command_result.stdout }}"
+    cacheable: true
+
+- name: Wait for control plane node to be Ready
+  ansible.builtin.command: >
+    kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  register: node_ready
+  until: node_ready.stdout == "True"
+  retries: 30
+  delay: 10
+  changed_when: false

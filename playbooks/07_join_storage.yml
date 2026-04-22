@@ -1,0 +1,8 @@
+---
+# StorageノードをK8sクラスタにjoin + ラベル/taint付与
+- name: Join Storage node to cluster
+  hosts: storage
+  gather_facts: true
+  become: true
+  roles:
+    - storage_join

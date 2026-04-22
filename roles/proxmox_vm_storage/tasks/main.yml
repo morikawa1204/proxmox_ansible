@@ -1,0 +1,62 @@
+---
+- name: Clone template for Storage node
+  community.general.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_port: "{{ proxmox_api_port }}"
+    api_user: "{{ proxmox_user }}"
+    api_password: "{{ proxmox_password }}"
+    node: "{{ proxmox_node }}"
+    clone: "{{ vm_template_name }}"
+    vmid: "{{ vm_template_id }}"
+    newid: "{{ vm_id }}"
+    name: "{{ inventory_hostname }}"
+    full: true
+    storage: "{{ vm_storage }}"
+    timeout: 300
+
+- name: Configure Storage VM specs
+  community.general.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_port: "{{ proxmox_api_port }}"
+    api_user: "{{ proxmox_user }}"
+    api_password: "{{ proxmox_password }}"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ vm_id }}"
+    cores: "{{ vm_cores }}"
+    memory: "{{ vm_memory }}"
+    update: true
+    update_unsafe: true
+
+- name: Resize Storage root disk
+  ansible.builtin.command: >
+    qm resize {{ vm_id }} scsi0 {{ vm_disk_size }}
+  delegate_to: "{{ groups['proxmox'][0] }}"
+  changed_when: true
+
+- name: Set cloud-init network config for Storage
+  ansible.builtin.command: >
+    qm set {{ vm_id }}
+    --ipconfig0 ip={{ ansible_host }}/{{ vm_netmask }},gw={{ vm_gateway }}
+    --nameserver {{ vm_nameserver }}
+    --searchdomain {{ vm_searchdomain }}
+  delegate_to: "{{ groups['proxmox'][0] }}"
+  changed_when: true
+
+- name: Start Storage VM
+  community.general.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_port: "{{ proxmox_api_port }}"
+    api_user: "{{ proxmox_user }}"
+    api_password: "{{ proxmox_password }}"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ vm_id }}"
+    state: started
+
+- name: Wait for Storage VM to be reachable via SSH
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: 22
+    delay: 10
+    timeout: 300
+  delegate_to: localhost
+  become: false

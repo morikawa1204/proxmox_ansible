@@ -1,0 +1,21 @@
+---
+# ===== Kubernetes設定 =====
+k8s_version: "1.31"
+k8s_apt_key_url: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key"
+k8s_apt_repo: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/"
+
+# ===== kubeadm init設定 =====
+pod_network_cidr: "10.244.0.0/16"
+service_cidr: "10.96.0.0/12"
+cluster_name: "k8s-homelab"
+
+# ===== CNI (Calico) =====
+calico_version: "v3.28.0"
+calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml"
+
+# ===== Longhorn =====
+longhorn_version: "v1.7.0"
+longhorn_namespace: "longhorn-system"
+
+# ===== containerd =====
+containerd_version: "1.7.*"

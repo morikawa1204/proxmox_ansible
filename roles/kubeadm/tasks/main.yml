@@ -1,0 +1,38 @@
+---
+# ===== Kubernetes APTリポジトリ =====
+- name: Add Kubernetes GPG key
+  ansible.builtin.shell: |
+    curl -fsSL {{ k8s_apt_key_url }} | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Add Kubernetes APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] {{ k8s_apt_repo }} /"
+    filename: kubernetes
+    state: present
+
+# ===== kubeadm / kubelet / kubectl インストール =====
+- name: Install kubeadm, kubelet, and kubectl
+  ansible.builtin.apt:
+    name:
+      - kubeadm
+      - kubelet
+      - kubectl
+    state: present
+    update_cache: true
+
+- name: Hold kubeadm, kubelet, kubectl at current version
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+
+- name: Enable kubelet service
+  ansible.builtin.systemd:
+    name: kubelet
+    enabled: true
+    state: started

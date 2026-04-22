@@ -1,0 +1,8 @@
+---
+# Worker VMをテンプレートからクローン・起動 (2台)
+- name: Create Worker VMs
+  hosts: workers
+  gather_facts: false
+  become: false
+  roles:
+    - proxmox_vm_worker

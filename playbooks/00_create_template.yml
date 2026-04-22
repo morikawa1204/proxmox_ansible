@@ -1,0 +1,8 @@
+---
+# Debian 12 cloud-initテンプレートをProxmox上に作成
+- name: Create Debian 12 cloud-init template
+  hosts: proxmox
+  gather_facts: false
+  become: true
+  roles:
+    - proxmox_template

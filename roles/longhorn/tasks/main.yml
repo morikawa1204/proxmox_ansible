@@ -1,0 +1,89 @@
+---
+# ===== 全ノードにLonghorn前提パッケージ =====
+- name: Install Longhorn prerequisites on all cluster nodes
+  ansible.builtin.apt:
+    name:
+      - open-iscsi
+      - nfs-common
+    state: present
+    update_cache: true
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['k8s_cluster'] }}"
+  run_once: true
+
+- name: Enable iscsid on all cluster nodes
+  ansible.builtin.systemd:
+    name: iscsid
+    enabled: true
+    state: started
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['k8s_cluster'] }}"
+  run_once: true
+
+# ===== Longhorn デプロイ =====
+- name: Create Longhorn namespace
+  ansible.builtin.command: >
+    kubectl create namespace {{ longhorn_namespace }}
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  register: ns_result
+  failed_when: ns_result.rc != 0 and 'already exists' not in ns_result.stderr
+  changed_when: ns_result.rc == 0
+
+- name: Download Longhorn manifest
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/longhorn/longhorn/{{ longhorn_version }}/deploy/longhorn.yaml"
+    dest: /tmp/longhorn.yaml
+    mode: "0644"
+
+- name: Apply Longhorn manifest
+  ansible.builtin.command: >
+    kubectl apply -f /tmp/longhorn.yaml
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  register: longhorn_apply
+  changed_when: "'created' in longhorn_apply.stdout or 'configured' in longhorn_apply.stdout"
+
+# ===== Longhorn toleration設定 (storageノードのtaintに対応) =====
+- name: Patch Longhorn default setting for toleration
+  ansible.builtin.command: >
+    kubectl -n {{ longhorn_namespace }} patch settings.longhorn.io taint-toleration
+    --type merge -p '{"value": "node-role.kubernetes.io/storage=:NoSchedule"}'
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  register: toleration_patch
+  retries: 10
+  delay: 15
+  until: toleration_patch.rc == 0
+  changed_when: true
+
+# ===== デフォルトStorageClass設定 =====
+- name: Set Longhorn as default StorageClass
+  ansible.builtin.command: >
+    kubectl patch storageclass longhorn
+    -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "true"}}}'
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  register: sc_patch
+  retries: 10
+  delay: 15
+  until: sc_patch.rc == 0
+  changed_when: true
+
+# ===== Longhorn起動確認 =====
+- name: Wait for Longhorn manager to be ready
+  ansible.builtin.command: >
+    kubectl -n {{ longhorn_namespace }} rollout status daemonset/longhorn-manager --timeout=300s
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  changed_when: false

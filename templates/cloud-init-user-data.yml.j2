@@ -1,0 +1,27 @@
+#cloud-config
+hostname: {{ inventory_hostname }}
+fqdn: {{ inventory_hostname }}.{{ vm_searchdomain }}
+manage_etc_hosts: true
+
+users:
+  - name: {{ cloud_init_user }}
+    groups: sudo
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    ssh_authorized_keys:
+      - {{ cloud_init_ssh_public_key }}
+
+package_update: true
+package_upgrade: true
+packages:
+  - qemu-guest-agent
+  - python3
+  - python3-apt
+
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+
+power_state:
+  mode: reboot
+  condition: true

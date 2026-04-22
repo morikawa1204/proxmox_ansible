@@ -1,0 +1,8 @@
+---
+# Longhornストレージのデプロイ
+- name: Deploy Longhorn storage
+  hosts: control_plane
+  gather_facts: true
+  become: true
+  roles:
+    - longhorn

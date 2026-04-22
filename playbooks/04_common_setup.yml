@@ -1,0 +1,10 @@
+---
+# 全K8sノードの共通セットアップ (swap無効化, containerd, kubeadm)
+- name: Common setup for all K8s nodes
+  hosts: k8s_cluster
+  gather_facts: true
+  become: true
+  roles:
+    - common
+    - containerd
+    - kubeadm

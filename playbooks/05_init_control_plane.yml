@@ -1,0 +1,8 @@
+---
+# Control Planeの初期化 (kubeadm init + Calico CNI)
+- name: Initialize Kubernetes Control Plane
+  hosts: control_plane
+  gather_facts: true
+  become: true
+  roles:
+    - control_plane_init

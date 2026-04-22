@@ -1,0 +1,37 @@
+---
+# 統合Playbook: 全フェーズを順次実行
+# 使用方法: ansible-playbook playbooks/site.yml
+
+# Phase 1: Proxmox上にDebian 12テンプレート作成
+- name: Phase 1 - Create VM template
+  ansible.builtin.import_playbook: 00_create_template.yml
+
+# Phase 2: VM作成 (CP → Worker, Storage)
+- name: Phase 2a - Create Control Plane VM
+  ansible.builtin.import_playbook: 01_create_cp_vm.yml
+
+- name: Phase 2b - Create Worker VMs
+  ansible.builtin.import_playbook: 02_create_worker_vms.yml
+
+- name: Phase 2c - Create Storage VM
+  ansible.builtin.import_playbook: 03_create_storage_vm.yml
+
+# Phase 3: 全ノード共通セットアップ
+- name: Phase 3 - Common setup
+  ansible.builtin.import_playbook: 04_common_setup.yml
+
+# Phase 4: Control Plane初期化
+- name: Phase 4 - Initialize Control Plane
+  ansible.builtin.import_playbook: 05_init_control_plane.yml
+
+# Phase 5: Worker Join
+- name: Phase 5 - Join Workers
+  ansible.builtin.import_playbook: 06_join_workers.yml
+
+# Phase 6: Storage Join
+- name: Phase 6 - Join Storage
+  ansible.builtin.import_playbook: 07_join_storage.yml
+
+# Phase 7: Longhorn Deploy
+- name: Phase 7 - Deploy Longhorn
+  ansible.builtin.import_playbook: 08_deploy_longhorn.yml
