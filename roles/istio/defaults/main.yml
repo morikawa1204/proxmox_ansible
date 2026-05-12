@@ -1,0 +1,10 @@
+---
+# istioctl バイナリの展開先 (CPノード上)
+istio_download_dir: "/tmp/istio"
+
+# Ingress Gateway を含む場合 true (profile: default / demo は含む)
+istio_ingress_gateway_enabled: true
+
+# サイドカープロキシのリソースリクエスト
+istio_proxy_cpu_request: "100m"
+istio_proxy_memory_request: "128Mi"

@@ -1,0 +1,13 @@
+---
+# このファイルをコピーして vault.yml を作成し、ansible-vault で暗号化する
+# cp inventory/group_vars/vault.yml.example inventory/group_vars/vault.yml
+# ansible-vault encrypt inventory/group_vars/vault.yml
+
+# Proxmox root パスワード
+vault_proxmox_password: "YOUR_PROXMOX_PASSWORD"
+
+# VM ユーザー (k8s) のパスワード
+vault_cloud_init_password: "YOUR_VM_PASSWORD"
+
+# VM に登録する SSH 公開鍵 (秘密鍵は ansible.cfg の private_key_file と対になること)
+vault_ssh_public_key: "ssh-ed25519 AAAA... your-key@host"

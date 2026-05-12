@@ -19,3 +19,9 @@ longhorn_namespace: "longhorn-system"
 
 # ===== containerd =====
 containerd_version: "1.7.*"
+
+# ===== Istio =====
+istio_version: "1.24.3"
+istio_namespace: "istio-system"
+# インストールプロファイル: minimal (istiodのみ) / default (istiod + ingressgateway) / demo
+istio_profile: "default"

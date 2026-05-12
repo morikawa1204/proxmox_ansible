@@ -2,6 +2,10 @@
 # 統合Playbook: 全フェーズを順次実行
 # 使用方法: ansible-playbook playbooks/site.yml
 
+# Phase 0: 事前バリデーション
+- name: Phase 0 - Preflight checks
+  ansible.builtin.import_playbook: preflight.yml
+
 # Phase 1: Proxmox上にDebian 12テンプレート作成
 - name: Phase 1 - Create VM template
   ansible.builtin.import_playbook: 00_create_template.yml
@@ -35,3 +39,7 @@
 # Phase 7: Longhorn Deploy
 - name: Phase 7 - Deploy Longhorn
   ansible.builtin.import_playbook: 08_deploy_longhorn.yml
+
+# Phase 8: Istio Deploy
+- name: Phase 8 - Deploy Istio
+  ansible.builtin.import_playbook: 09_deploy_istio.yml

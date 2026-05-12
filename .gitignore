@@ -1,0 +1,18 @@
+# ===== Ansible Vault =====
+# vault.yml は暗号化済みでも git 管理外にする (ローカル環境依存のため)
+inventory/group_vars/vault.yml
+# vault パスワードファイルは絶対に commit しない
+.vault_pass
+
+# ===== Ansible ランタイム =====
+*.retry
+.ansible/
+fact_cache/
+
+# ===== OS / エディタ =====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/

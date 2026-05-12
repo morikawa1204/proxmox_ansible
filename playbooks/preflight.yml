@@ -1,0 +1,131 @@
+---
+# 事前バリデーション: 実際の Proxmox/VM 操作の前に環境を検証する
+# ansible-playbook playbooks/preflight.yml で単独実行可能
+- name: Preflight checks
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    required_collections:
+      - community.general
+      - kubernetes.core
+      - ansible.posix
+    vault_file: "{{ playbook_dir }}/../inventory/group_vars/vault.yml"
+    min_ansible_major: 2
+    min_ansible_minor: 15
+
+  tasks:
+    # ===== Ansible バージョン =====
+    - name: Check Ansible version
+      ansible.builtin.assert:
+        that:
+          - ansible_version.major > min_ansible_major or
+            (ansible_version.major == min_ansible_major and ansible_version.minor >= min_ansible_minor)
+        fail_msg: >
+          Ansible {{ min_ansible_major }}.{{ min_ansible_minor }}+ が必要です
+          (現在: {{ ansible_version.full }})
+        success_msg: "✓ Ansible {{ ansible_version.full }}"
+
+    # ===== vault.yml 存在確認 =====
+    - name: Check vault.yml exists
+      ansible.builtin.stat:
+        path: "{{ vault_file }}"
+      register: vault_stat
+
+    - name: Assert vault.yml exists
+      ansible.builtin.assert:
+        that: vault_stat.stat.exists
+        fail_msg: >
+          inventory/group_vars/vault.yml が見つかりません。
+          bash setup.sh を実行してください。
+        success_msg: "✓ vault.yml が存在します"
+
+    # ===== .vault_pass 存在確認 =====
+    - name: Check .vault_pass exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../.vault_pass"
+      register: vaultpass_stat
+
+    - name: Assert .vault_pass exists
+      ansible.builtin.assert:
+        that: vaultpass_stat.stat.exists
+        fail_msg: >
+          .vault_pass が見つかりません。
+          bash setup.sh を実行してください。
+        success_msg: "✓ .vault_pass が存在します"
+
+    # ===== SSH 秘密鍵確認 =====
+    - name: Read private_key_file from ansible.cfg
+      ansible.builtin.shell: |
+        grep '^private_key_file' {{ playbook_dir }}/../ansible.cfg | awk -F'=' '{print $2}' | tr -d ' '
+      register: private_key_path
+      changed_when: false
+
+    - name: Expand home directory in key path
+      ansible.builtin.set_fact:
+        expanded_key_path: "{{ private_key_path.stdout | replace('~', lookup('env', 'HOME')) }}"
+
+    - name: Check SSH private key exists
+      ansible.builtin.stat:
+        path: "{{ expanded_key_path }}"
+      register: ssh_key_stat
+
+    - name: Assert SSH private key exists
+      ansible.builtin.assert:
+        that: ssh_key_stat.stat.exists
+        fail_msg: >
+          SSH 秘密鍵 {{ expanded_key_path }} が見つかりません。
+          ansible.cfg の private_key_file を確認してください。
+        success_msg: "✓ SSH 秘密鍵 {{ expanded_key_path }}"
+
+    # ===== Ansible Galaxy コレクション確認 =====
+    - name: Check required collections are installed
+      ansible.builtin.command: ansible-galaxy collection list {{ item }}
+      register: collection_check
+      failed_when: collection_check.rc != 0
+      changed_when: false
+      loop: "{{ required_collections }}"
+
+    - name: Report installed collections
+      ansible.builtin.debug:
+        msg: "✓ collection {{ item }} はインストール済みです"
+      loop: "{{ required_collections }}"
+
+    # ===== proxmoxer Python パッケージ確認 =====
+    - name: Check proxmoxer Python package
+      ansible.builtin.command: python3 -c "import proxmoxer"
+      register: proxmoxer_check
+      failed_when: false
+      changed_when: false
+
+    - name: Assert proxmoxer is installed
+      ansible.builtin.assert:
+        that: proxmoxer_check.rc == 0
+        fail_msg: >
+          proxmoxer Python パッケージが見つかりません。
+          pip3 install proxmoxer requests を実行してください。
+        success_msg: "✓ proxmoxer がインストール済みです"
+
+    # ===== Proxmox API 到達確認 =====
+    - name: Load group_vars (for proxmox_host)
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../inventory/group_vars/all.yml"
+
+    - name: Check Proxmox API reachability
+      ansible.builtin.uri:
+        url: "https://{{ proxmox_host }}:8006/api2/json/version"
+        method: GET
+        validate_certs: false
+        timeout: 10
+      register: proxmox_api_check
+      failed_when: proxmox_api_check.status != 200
+
+    - name: Report Proxmox API status
+      ansible.builtin.debug:
+        msg: "✓ Proxmox API ({{ proxmox_host }}:8006) に到達できました"
+
+    # ===== 完了サマリ =====
+    - name: Preflight complete
+      ansible.builtin.debug:
+        msg: "======== すべての preflight チェックが通過しました。デプロイを開始できます ========"

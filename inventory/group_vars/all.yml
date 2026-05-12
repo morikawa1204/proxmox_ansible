@@ -4,8 +4,7 @@ proxmox_host: "192.168.1.10"
 proxmox_api_host: "{{ proxmox_host }}"
 proxmox_api_port: 8006
 proxmox_user: "root@pam"
-# ansible-vault で暗号化推奨: ansible-vault encrypt_string 'YOUR_PASSWORD'
-proxmox_password: "CHANGE_ME"
+proxmox_password: "{{ vault_proxmox_password }}"
 proxmox_node: "pve01"
 
 # ===== VM共通設定 =====
@@ -20,9 +19,8 @@ vm_searchdomain: "k8s.local"
 
 # ===== cloud-init設定 =====
 cloud_init_user: "k8s"
-# ansible-vault で暗号化推奨
-cloud_init_password: "CHANGE_ME"
-cloud_init_ssh_public_key: "ssh-ed25519 AAAA... your-key@host"
+cloud_init_password: "{{ vault_cloud_init_password }}"
+cloud_init_ssh_public_key: "{{ vault_ssh_public_key }}"
 
 # ===== Debian cloud image =====
 debian_cloud_image_url: "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2"

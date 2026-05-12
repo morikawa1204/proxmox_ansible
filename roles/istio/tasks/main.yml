@@ -1,0 +1,75 @@
+---
+# ===== istioctl バイナリ取得 =====
+- name: Check if istioctl binary already exists
+  ansible.builtin.stat:
+    path: "{{ istio_download_dir }}/istio-{{ istio_version }}/bin/istioctl"
+  register: istioctl_stat
+
+- name: Create istio download directory
+  ansible.builtin.file:
+    path: "{{ istio_download_dir }}"
+    state: directory
+    mode: "0755"
+  when: not istioctl_stat.stat.exists
+
+- name: Download Istio release archive
+  ansible.builtin.get_url:
+    url: "https://github.com/istio/istio/releases/download/{{ istio_version }}/istio-{{ istio_version }}-linux-amd64.tar.gz"
+    dest: "{{ istio_download_dir }}/istio-{{ istio_version }}-linux-amd64.tar.gz"
+    mode: "0644"
+  when: not istioctl_stat.stat.exists
+
+- name: Extract Istio release archive
+  ansible.builtin.unarchive:
+    src: "{{ istio_download_dir }}/istio-{{ istio_version }}-linux-amd64.tar.gz"
+    dest: "{{ istio_download_dir }}"
+    remote_src: true
+  when: not istioctl_stat.stat.exists
+
+# ===== Istio インストール (べき等: namespace 存在チェック) =====
+- name: Check if istio-system namespace exists
+  ansible.builtin.command: >
+    kubectl get namespace {{ istio_namespace }}
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  register: istio_ns_check
+  failed_when: false
+  changed_when: false
+
+- name: Install Istio via istioctl
+  ansible.builtin.command: >
+    {{ istio_download_dir }}/istio-{{ istio_version }}/bin/istioctl install
+    --set profile={{ istio_profile }}
+    --set values.global.proxy.resources.requests.cpu={{ istio_proxy_cpu_request }}
+    --set values.global.proxy.resources.requests.memory={{ istio_proxy_memory_request }}
+    -y
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  when: istio_ns_check.rc != 0
+  register: istio_install_result
+  changed_when: true
+
+# ===== istiod 起動確認 =====
+- name: Wait for istiod deployment to be ready
+  ansible.builtin.command: >
+    kubectl -n {{ istio_namespace }} rollout status deployment/istiod --timeout=300s
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  changed_when: false
+
+# ===== Ingress Gateway 起動確認 =====
+- name: Wait for istio-ingressgateway deployment to be ready
+  ansible.builtin.command: >
+    kubectl -n {{ istio_namespace }} rollout status deployment/istio-ingressgateway --timeout=300s
+  become: true
+  become_user: "{{ cloud_init_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ cloud_init_user }}/.kube/config"
+  when: istio_ingress_gateway_enabled | bool
+  changed_when: false

@@ -47,24 +47,17 @@
         --serial0 socket
         --vga serial0
 
-    - name: Configure cloud-init defaults
-      ansible.builtin.command: >
-        qm set {{ vm_template_id }}
-        --ciuser {{ cloud_init_user }}
-        --cipassword {{ cloud_init_password }}
-        --sshkeys /tmp/authorized_keys_template
-      args:
-        creates: /tmp/.template_ci_configured
-
     - name: Write SSH public key to temp file
       ansible.builtin.copy:
         content: "{{ cloud_init_ssh_public_key }}"
         dest: /tmp/authorized_keys_template
         mode: "0644"
 
-    - name: Set cloud-init SSH key
+    - name: Configure cloud-init defaults
       ansible.builtin.command: >
         qm set {{ vm_template_id }}
+        --ciuser {{ cloud_init_user }}
+        --cipassword {{ cloud_init_password }}
         --sshkeys /tmp/authorized_keys_template
 
     - name: Set cloud-init network (DHCP for template)

@@ -4,5 +4,6 @@
   hosts: workers
   gather_facts: false
   become: false
+  connection: local
   roles:
     - proxmox_vm_worker

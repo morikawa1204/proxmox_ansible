@@ -1,0 +1,9 @@
+---
+# Istio サービスメッシュのデプロイ
+# 前提: kubeadm init (Phase 4), Calico (Phase 4), Longhorn (Phase 7) が完了していること
+- name: Deploy Istio service mesh
+  hosts: control_plane
+  gather_facts: true
+  become: true
+  roles:
+    - istio
